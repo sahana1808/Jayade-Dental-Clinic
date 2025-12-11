@@ -1,0 +1,215 @@
+:root{
+  --td-accent:#c9972d;
+  --td-card-bg: #ffffff;
+  --td-muted:#6b6b6b;
+  --td-radius:14px;
+  --td-card-shadow: 0 6px 18px rgba(20,20,20,0.08);
+  --td-max-width:1200px;
+
+  /* HOSPITAL BLUE */
+  --td-blue:#0b3d91;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  margin:0;
+  color:#111;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+.td-container{
+  max-width:var(--td-max-width);
+  margin: 48px auto;
+  padding: 0 24px 56px;
+}
+
+.td-heading {
+  text-align:center;
+  margin-bottom: 18px;
+}
+.td-heading h1{
+  font-size:34px;
+  margin:0;
+  font-weight:800;
+  color:var(--td-blue);
+}
+
+.td-lead{
+  max-width:880px;
+  margin:14px auto 0;
+  color:var(--td-muted);
+  font-size:15px;
+  line-height:1.6;
+}
+
+.td-rating-wrap{
+  text-align:center;
+  margin:36px 0 28px;
+}
+
+.td-rating-title{
+  font-weight:800;
+  letter-spacing:0.6px;
+  margin-bottom:8px;
+  font-size:20px;
+}
+
+.td-stars{
+  display:inline-flex;
+  gap:6px;
+  align-items:center;
+  margin-bottom:8px;
+}
+
+.td-star{
+  width:28px;
+  height:28px;
+  display:inline-block;
+  background:var(--td-blue);
+  -webkit-clip-path: polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+  clip-path: polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+  box-shadow:0 2px 0 rgba(0,0,0,0.06) inset;
+}
+
+.td-rating-sub{
+  color:var(--td-muted);
+  font-size:14px;
+  margin-top:4px;
+}
+
+.td-google-logo{
+  margin-top:8px;
+  height:34px;
+  display:inline-block;
+}
+
+/* 🟦 IMPORTANT FIX — DON'T STRETCH ALL CARDS */
+.td-cards-row{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap:20px;
+  align-items:start; /* PREVENT SAME HEIGHT ISSUE */
+  margin-top:28px;
+}
+
+.td-card{
+  background:var(--td-card-bg);
+  border-radius:var(--td-radius);
+  box-shadow:var(--td-card-shadow);
+  padding:18px;
+  position:relative;
+  overflow:visible; /* allow expansion */
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+/* ⭐ FIXED HEIGHT WHEN COLLAPSED */
+.td-content{
+  color:#222;
+  margin:0;
+  font-size:14px;
+  line-height:1.45;
+  max-height:70px;      /* 3–4 lines */
+  overflow:hidden;
+  transition:max-height .3s ease;
+}
+
+/* ⭐ EXPANDED ONLY FOR SELECTED CARD */
+.td-card.expanded .td-content{
+  max-height:2000px;    /* expand fully */
+  overflow:visible;
+}
+
+.td-readmore{
+  font-size:13px;
+  color:var(--td-muted);
+  margin-top:6px;
+  cursor:pointer;
+}
+
+.td-meta{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.td-avatar{
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  flex-shrink:0;
+  background:#eee;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:600;
+  color:#fff;
+  font-size:16px;
+  overflow:hidden;
+}
+
+.td-avatar img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+
+.td-name{
+  font-weight:700;
+  font-size:15px;
+}
+
+.td-date{
+  font-size:12px;
+  color:var(--td-muted);
+  margin-top:2px;
+}
+
+.td-rating-line{
+  display:flex;
+  gap:6px;
+  align-items:center;
+  margin-left:56px;
+}
+
+.td-small-star{
+  width:14px;
+  height:14px;
+  background:var(--td-blue);
+  -webkit-clip-path: polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+  clip-path: polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+  display:inline-block;
+}
+
+.td-verified{
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  background:#eaf6ff;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:12px;
+  color:#0073e6;
+  margin-left:8px;
+}
+
+.td-g-icon{
+  position:absolute;
+  right:12px;
+  top:12px;
+  width:22px;
+  height:22px;
+}
+
+@media (min-width:1000px){
+  .td-container{padding:0 32px 80px}
+  .td-heading h1{font-size:40px}
+  .td-rating-wrap{margin-top:46px}
+  .td-cards-row{gap:26px}
+}

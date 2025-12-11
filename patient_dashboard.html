@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dental Clinic Dashboard</title>
+
+  <style>
+    body { margin:0;padding:0;font-family:'Poppins',sans-serif;display:flex;height:100vh;background:#f5f7fb;overflow:hidden;}
+    .sidebar{width:260px;background:#0A224C;color:white;padding:25px 20px;display:flex;flex-direction:column;gap:15px;height:100%;}
+    .sidebar h2{font-size:22px;margin-bottom:10px;font-weight:700;}
+    .menu-item{padding:12px 15px;border-radius:10px;cursor:pointer;font-size:15px;font-weight:500;transition:0.3s;}
+    .menu-item:hover,.menu-item.active{background:white;color:#0A224C;font-weight:600;}
+    .main{flex:1;padding:30px 40px;overflow-y:auto;}
+    .box{background:white;padding:30px;border-radius:18px;border:2px solid #0A224C;box-shadow:0px 10px 20px rgba(0,0,0,0.08);max-width:850px;margin-bottom:35px;}
+    h1{color:#0A224C;margin:0 0 20px;font-weight:700;}
+    label{font-weight:600;color:#0A224C;font-size:14px;}
+    input,select,textarea{width:100%;padding:12px;border-radius:10px;border:1.6px solid #cfd8e6;margin-top:6px;margin-bottom:20px;font-size:14px;}
+    button{background:#0A224C;padding:12px 25px;border-radius:10px;border:none;color:white;cursor:pointer;font-size:16px;font-weight:600;}
+    table{width:100%;border-collapse:collapse;margin-top:10px;}
+    table td,table th{padding:12px;border-bottom:1px solid #d0d7e8;}
+    table th{background:#0A224C;color:white;text-align:left;}
+
+    /* ⭐ Rating stars */
+    .star-row{
+      display:flex;
+      gap:8px;
+      margin:6px 0 16px;
+      font-size:24px;
+    }
+    .star{
+      cursor:pointer;
+      color:#cfd8e6;
+      transition:color 0.2s;
+      user-select:none;
+    }
+    .star.selected{
+      color:#f4b400;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <h2>Dashboard</h2>
+    <div class="menu-item active" onclick="loadSection('home', this)">Home</div>
+    <div class="menu-item" onclick="loadSection('appointment', this)">Book Appointment</div>
+    <div class="menu-item" onclick="loadSection('history', this)">Appointment History</div>
+    <div class="menu-item" onclick="loadSection('feedback', this)">Feedback</div>
+    <div class="menu-item" onclick="logout()">Logout</div>
+  </div>
+
+  <!-- MAIN AREA -->
+  <div class="main" id="main-content">
+    <div class="box">
+      <h2 id="welcomeText"></h2>
+      <p>Your dashboard is ready. Choose an option from the left menu.</p>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "http://localhost:5000";
+
+    // Logged in user from localStorage
+    const user = JSON.parse(localStorage.getItem("dentcare_user")) || {};
+
+    // If not logged in, go back to login
+    if (!user.name || !user.role) {
+      window.location.href = "login.html";
+    }
+
+    const userName = user.name;
+    let patientId = null;
+    let selectedRating = 5; // default rating
+
+    // 🔹 Decode JWT token to extract patient id
+    if (user.token) {
+      try {
+        const payloadBase64 = user.token.split(".")[1];
+        const payloadJson = atob(payloadBase64);
+        const payload = JSON.parse(payloadJson);
+        patientId = payload.id || payload._id || null;
+        console.log("Decoded patientId from token:", patientId);
+      } catch (e) {
+        console.error("Failed to decode token", e);
+      }
+    }
+
+    document.getElementById("welcomeText").innerText =
+      `Welcome ${user.role.charAt(0).toUpperCase() + user.role.slice(1)}, ${userName}`;
+
+    async function loadSection(section, element) {
+      document.querySelectorAll(".menu-item").forEach(m => m.classList.remove("active"));
+      element.classList.add("active");
+
+      let html = "";
+
+      // HOME
+      if (section === "home") {
+        html = `<div class="box"><h1>Welcome, ${userName} 👋</h1>
+                <p>Select any feature from the left menu.</p></div>`;
+      }
+
+      // BOOK APPOINTMENT
+      if (section === "appointment") {
+        html = `<div class="box">
+                  <h1>Book Appointment</h1>
+                  <label>Patient Name</label>
+                  <input type="text" value="${userName}" disabled>
+
+                  <label>Select Doctor</label>
+                  <select id="doctorSelect"><option>Loading doctors...</option></select>
+
+                  <label>Select Date</label>
+                  <input id="appt_date" type="date">
+
+                  <label>Time Slot</label>
+                  <select id="appt_time">
+                    <option value="">Select time</option>
+                    <option>10:00 AM</option>
+                    <option>11:00 AM</option>
+                    <option>02:00 PM</option>
+                    <option>03:00 PM</option>
+                  </select>
+
+                  <button onclick="saveAppointment()">Book Appointment</button>
+                </div>`;
+      }
+
+      // PRESCRIPTION
+      if (section === "prescription") {
+        html = `<div class="box"><h1>Prescription Download</h1>
+                <p>Loading prescriptions...</p></div>`;
+      }
+
+      // HISTORY
+      if (section === "history") {
+        html = `<div class="box"><h1>Appointment History</h1>
+                <p>Loading appointment history...</p></div>`;
+      }
+
+      // FEEDBACK
+      if (section === "feedback") {
+        html = `<div class="box"><h1>Feedback</h1>
+                <label>Rate your experience</label>
+                <div class="star-row" id="starRow">
+                  <span class="star" data-value="1">★</span>
+                  <span class="star" data-value="2">★</span>
+                  <span class="star" data-value="3">★</span>
+                  <span class="star" data-value="4">★</span>
+                  <span class="star" data-value="5">★</span>
+                </div>
+
+                <label>Your Feedback</label>
+                <textarea id="feedbackText" rows="5" placeholder="Write your experience..."></textarea>
+                <button onclick="submitFeedback()">Submit</button>
+                </div>`;
+      }
+
+      document.getElementById("main-content").innerHTML = html;
+
+      // init stars if on feedback section
+      if (section === "feedback") {
+        setupRatingStars();
+      }
+
+      // 🔹 Load doctors for dropdown (public route, no token needed)
+      if (section === "appointment") {
+        try {
+          const res = await fetch(`${API_BASE}/api/admin/public/doctors`);
+          const data = await res.json();
+          const select = document.getElementById("doctorSelect");
+
+          if (data.success && data.doctors && data.doctors.length) {
+            select.innerHTML = data.doctors
+              .map(d => `<option value="${d._id}">${d.name} – ${d.speciality || "N/A"}</option>`)
+              .join("");
+          } else {
+            select.innerHTML = `<option>No doctors available</option>`;
+          }
+        } catch (err) {
+          console.error(err);
+          document.getElementById("doctorSelect").innerHTML =
+            `<option>Error loading doctors</option>`;
+        }
+      }
+
+      // 🔹 Load dashboard data (prescriptions + history) using patientId
+      if (patientId) {
+        try {
+          const res = await fetch(`${API_BASE}/api/patient/dashboard/${patientId}`);
+          if (!res.ok) throw new Error("Failed to fetch");
+          const data = await res.json();
+
+          // PRESCRIPTIONS TABLE
+          if (section === "prescription" && data.prescriptions) {
+            const presHtml = `<div class="box"><h1>Prescription Download</h1>
+              <table>
+                <tr><th>Date</th><th>Doctor</th><th>Action</th></tr>
+                ${data.prescriptions
+                  .map(
+                    p => `<tr>
+                      <td>${new Date(p.date).toLocaleDateString()}</td>
+                      <td>${p.doctorName}</td>
+                      <td><button onclick="downloadPrescription('${p.fileUrl}')">
+                          Download</button></td>
+                    </tr>`
+                  )
+                  .join("")}
+              </table></div>`;
+            document.getElementById("main-content").innerHTML = presHtml;
+          }
+
+          // APPOINTMENT HISTORY TABLE
+          if (section === "history" && data.appointments) {
+            const histHtml = `<div class="box"><h1>Appointment History</h1>
+              <table>
+                <tr><th>Date</th><th>Doctor</th><th>Status</th></tr>
+                ${data.appointments
+                  .map(
+                    a => `<tr>
+                      <td>${new Date(a.date).toLocaleDateString()}</td>
+                      <td>${a.doctorName}</td>
+                      <td>${a.status}</td>
+                    </tr>`
+                  )
+                  .join("")}
+              </table></div>`;
+            document.getElementById("main-content").innerHTML = histHtml;
+          }
+        } catch (err) {
+          console.warn("Dashboard fetch error:", err);
+        }
+      }
+
+      document.querySelector(".main").scrollTop = 0;
+    }
+
+    // ⭐ set up clickable stars
+    function setupRatingStars() {
+      selectedRating = 5; // reset default
+      const stars = document.querySelectorAll(".star");
+      stars.forEach(star => {
+        const value = Number(star.dataset.value);
+        if (value <= selectedRating) star.classList.add("selected");
+
+        star.addEventListener("click", () => {
+          selectedRating = value;
+          stars.forEach(s => {
+            const v = Number(s.dataset.value);
+            s.classList.toggle("selected", v <= selectedRating);
+          });
+        });
+      });
+    }
+
+    // 🔹 Save appointment to BACKEND
+    async function saveAppointment() {
+      const doctorId = document.getElementById("doctorSelect").value;
+      const date = document.getElementById("appt_date").value;
+      const timeSlot = document.getElementById("appt_time").value;
+
+      if (!patientId || !doctorId || !date || !timeSlot) {
+        alert("All fields are required");
+        return;
+      }
+
+      const payload = { patientId, doctorId, date, timeSlot };
+      console.log("DEBUG APPT PAYLOAD:", payload);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/patient/appointments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          console.error("BOOK APPT ERROR:", data);
+          alert(data.message || "Failed to book appointment");
+          return;
+        }
+
+        alert("Appointment booked successfully!");
+        const historyItem = document.querySelectorAll(".menu-item")[3];
+        loadSection("history", historyItem);
+      } catch (err) {
+        console.error(err);
+        alert("Error while booking appointment");
+      }
+    }
+
+    // 🔹 Submit feedback to BACKEND
+    async function submitFeedback() {
+      if (!patientId) {
+        alert("Patient not identified. Please log in again.");
+        return;
+      }
+
+      const textarea = document.getElementById("feedbackText");
+      const message = textarea.value.trim();
+
+      if (!message) {
+        alert("Please write some feedback before submitting.");
+        return;
+      }
+
+      const payload = {
+        patientId,
+        name: userName,
+        message,
+        rating: selectedRating || 5
+      };
+
+      console.log("DEBUG FEEDBACK PAYLOAD:", payload);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/patient/feedback`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          console.error("FEEDBACK ERROR:", data);
+          alert(data.message || "Failed to submit feedback");
+          return;
+        }
+
+        alert("Thank you for your feedback!");
+        textarea.value = "";
+        selectedRating = 5;
+      } catch (err) {
+        console.error(err);
+        alert("Error while submitting feedback");
+      }
+    }
+
+    function downloadPrescription(url) {
+      window.open(url, "_blank");
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = "login.html";
+    }
+
+    // Load Home initially
+    loadSection("home", document.querySelector(".menu-item.active"));
+  </script>
+
+</body>
+</html>

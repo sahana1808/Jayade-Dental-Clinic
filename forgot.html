@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Forgot Password</title>
+
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    .card {
+      width: 420px;
+      padding: 30px;
+      background: #ffffff;
+      border-radius: 18px;
+      border: 2px solid #0A224C;
+      box-shadow: 0px 10px 25px rgba(0, 0, 0, 0.1);
+    }
+
+    .card h2 {
+      text-align: center;
+      color: #0A224C;
+      margin-bottom: 22px;
+      font-weight: 700;
+    }
+
+    .input-group {
+      margin-bottom: 15px;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #0A224C;
+      margin-bottom: 6px;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1.6px solid #cfd8e6;
+      outline: none;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    .input-group input:focus {
+      border-color: #0A224C;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      background: #0A224C;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .btn:hover {
+      background: #071a3a;
+    }
+
+    .link {
+      text-align: center;
+      margin-top: 15px;
+      font-size: 14px;
+    }
+
+    .link a {
+      color: #0A224C;
+      font-weight: 600;
+      text-decoration: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="card">
+    <h2>Reset Password</h2>
+
+    <!-- STEP 1: Enter Email -->
+    <div id="step1">
+      <div class="input-group">
+        <label>Enter your Email</label>
+        <input type="email" id="email" required />
+      </div>
+
+      <button type="button" class="btn" onclick="sendOTP()">Send OTP</button>
+    </div>
+
+    <!-- STEP 2: Enter OTP + New Password -->
+    <div id="step2" style="display:none;">
+      <div class="input-group">
+        <label>Enter OTP</label>
+        <input type="text" id="otp" required />
+      </div>
+
+      <div class="input-group">
+        <label>New Password</label>
+        <input type="password" id="newPassword" required />
+      </div>
+
+      <button type="button" class="btn" onclick="resetPassword()">Reset Password</button>
+    </div>
+
+    <div class="link">
+      <a href="login.html">Back to Login</a>
+    </div>
+  </div>
+
+  <script>
+    const API = "http://localhost:5000/api/auth";
+
+    async function sendOTP() {
+      const email = document.getElementById("email").value;
+      if (!email) return alert("Please enter your email");
+
+      try {
+        const res = await fetch(`${API}/forgot-password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const data = await res.json();
+        alert(data.message);
+        if (data.success) {
+          document.getElementById("step1").style.display = "none";
+          document.getElementById("step2").style.display = "block";
+        }
+      } catch (err) {
+        alert("Server error. Try again later.");
+        console.error(err);
+      }
+    }
+
+    async function resetPassword() {
+      const email = document.getElementById("email").value;
+      const otp = document.getElementById("otp").value;
+      const newPassword = document.getElementById("newPassword").value;
+
+      if (!otp || !newPassword) return alert("Please fill all fields");
+
+      try {
+        const res = await fetch(`${API}/reset-password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, otp, newPassword }),
+        });
+        const data = await res.json();
+        alert(data.message);
+        if (data.success) {
+          window.location.href = "login.html";
+        }
+      } catch (err) {
+        alert("Server error. Try again later.");
+        console.error(err);
+      }
+    }
+  </script>
+
+</body>
+</html>

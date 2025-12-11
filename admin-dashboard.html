@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin — Manage Users</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --nav:#0A224C;
+      --bg:#f5f7fb;
+      --card:#ffffff;
+      --muted:#cfd8e6;
+      --accent:#0A224C;
+      --radius:12px;
+    }
+    *{box-sizing:border-box}
+    body{ margin:0; padding:0; font-family:'Poppins',sans-serif; background:var(--bg); height:100vh; display:flex; overflow:hidden; }
+
+    .sidebar{ width:260px; background:var(--nav); color:#fff; padding:28px 20px; display:flex; flex-direction:column; gap:14px; }
+    .brand{ font-size:20px; font-weight:700 }
+    .menu-item{ padding:12px 14px; border-radius:10px; cursor:pointer; font-size:15px; font-weight:500; transition:all .18s; }
+    .menu-item:hover,.menu-item.active{ background:#fff; color:var(--nav); font-weight:600; }
+
+    .main{ flex:1; padding:24px; overflow:auto; }
+    header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px; }
+    .btn{ background:var(--accent); color:#fff; padding:10px 14px; border-radius:10px; border:none; cursor:pointer; font-weight:600; }
+
+    .row{ display:flex; gap:18px; margin-bottom:18px; flex-wrap:wrap; }
+    .card{ background:var(--card); padding:18px; border-radius:18px; box-shadow:0 8px 20px rgba(0,0,0,0.06); flex:1; border:2px solid var(--nav); min-width:300px; }
+    .card h3{ margin:0 0 8px; color:var(--nav); display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .small{ font-size:13px; color:#666 }
+
+    table{ width:100%; border-collapse:collapse; margin-top:12px; font-size:14px; }
+    th,td{ padding:10px; border-bottom:1px solid #e6edf6; text-align:left; vertical-align:middle; }
+    th{ background:var(--nav); color:#fff; }
+    .actions button{ margin-right:6px; }
+
+    .status-pill{ display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+    .status-Pending{ background:#fff3cd; color:#856404; border:1px solid #ffeeba; }
+    .status-Contacted{ background:#d4edda; color:#155724; border:1px solid #c3e6cb; }
+
+    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:center; justify-content:center; z-index:999; }
+    .modal{ background:#fff; padding:18px; border-radius:14px; min-width:320px; max-width:700px; max-height:80vh; overflow:auto; }
+
+    label{ display:block; font-weight:600; color:var(--nav); margin-top:8px; }
+    input,select,textarea{ width:100%; padding:10px; border-radius:8px; border:1.6px solid var(--muted); margin-top:6px; }
+
+    footer{ margin-top:28px; color:#666; font-size:13px; }
+
+    @media(max-width:900px){ .row{flex-direction:column} .sidebar{display:none} }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="brand">Admin Panel</div>
+    <div class="menu-item active" data-section="manageUsers">Manage Users</div>
+    <div class="menu-item" data-section="appointments">Appointments</div>
+    <div class="menu-item" data-section="callbacks">Callbacks</div>
+    <div class="menu-item" onclick="logout()">Logout</div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <header>
+      <h2>Admin Dashboard</h2>
+    </header>
+
+    <div id="content"></div>
+
+    <footer>Version 1.1 • Admin Dashboard</footer>
+  </div>
+
+  <!-- Modal (used for viewing single callback / patient / doctor forms) -->
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal" id="modalContent"></div>
+  </div>
+
+  <script>
+    const adminData = JSON.parse(localStorage.getItem("dentcare_user") || "null");
+    const adminToken = adminData?.token;
+    const adminRole = adminData?.role;
+    if (!adminToken || adminRole !== "admin") {
+      alert("Admin not logged in!");
+      window.location.href = "login.html";
+    }
+
+    const API_BASE = 'http://localhost:5000';
+    const content = document.getElementById('content');
+    const modalBackdrop = document.getElementById('modalBackdrop');
+    const modalContent = document.getElementById('modalContent');
+    function showModal(html){ modalContent.innerHTML = html; modalBackdrop.style.display = 'flex'; }
+    function closeModal(){ modalBackdrop.style.display = 'none'; modalContent.innerHTML = ''; }
+    modalBackdrop.addEventListener('click', e => { if (e.target === modalBackdrop) closeModal(); });
+
+    // Sidebar nav
+    document.querySelectorAll('.menu-item').forEach(item=>{
+      item.addEventListener('click', ()=>{
+        document.querySelectorAll('.menu-item').forEach(i=>i.classList.remove('active'));
+        item.classList.add('active');
+        const section = item.getAttribute('data-section');
+        if (section === 'manageUsers') renderManageUsers();
+        else if (section === 'appointments') renderAppointments();
+        else if (section === 'callbacks') renderCallbacks(); // <-- full page render now
+      });
+    });
+
+    // ---------- helper fetches ----------
+    async function fetchJson(url, opts = {}) {
+      opts.headers = opts.headers || {};
+      if (adminToken) opts.headers['Authorization'] = 'Bearer ' + adminToken;
+      try {
+        const res = await fetch(url, opts);
+        const data = await res.json();
+        return { ok: res.ok, data };
+      } catch (err) {
+        console.error('fetch error', url, err);
+        return { ok: false, data: null, err };
+      }
+    }
+
+    // ---------- DOCTORS / PATIENTS (unchanged) ----------
+    async function fetchDoctors(){
+      const r = await fetchJson(`${API_BASE}/api/admin/doctors`);
+      window.doctors = (r.ok && r.data?.success) ? r.data.doctors || [] : [];
+    }
+
+    async function fetchPatientsFromApi(){
+      const r = await fetchJson(`${API_BASE}/api/admin/patients`);
+      return (r.ok && r.data?.success) ? (r.data.patients || []) : [];
+    }
+
+    // ---------- CALLBACKS (page) ----------
+    // Expected endpoints:
+    // GET  /api/admin/callbacks
+    // PATCH /api/admin/callbacks/:id/contacted
+    // DELETE /api/admin/callbacks/:id
+
+    async function fetchCallbacks(){
+      const r = await fetchJson(`${API_BASE}/api/admin/callbacks`);
+      return (r.ok && r.data?.success) ? (r.data.callbacks || []) : [];
+    }
+
+    async function renderCallbacks(){
+      content.innerHTML = `
+        <div class="row">
+          <div class="card" style="flex:1;">
+            <h3>Requested Callbacks</h3>
+            <p class="small">Loading callbacks...</p>
+          </div>
+        </div>
+      `;
+      try {
+        const callbacks = await fetchCallbacks();
+        if (!callbacks || callbacks.length === 0) {
+          content.innerHTML = `
+            <div class="row">
+              <div class="card" style="flex:1;">
+                <h3>Requested Callbacks</h3>
+                <p class="small">No callbacks found.</p>
+              </div>
+            </div>
+          `;
+          return;
+        }
+
+        const rows = callbacks.map(cb => {
+          const created = cb.createdAt ? new Date(cb.createdAt).toLocaleString() : '-';
+          const statusClass = cb.contacted ? 'status-Contacted' : 'status-Pending';
+          const statusText = cb.contacted ? 'Contacted' : 'Pending';
+          return `
+            <tr data-id="${cb._id}">
+              <td>${escapeHtml(cb.name || '-')}</td>
+              <td>${escapeHtml(cb.phone || '-')}</td>
+              <td>${created}</td>
+              <td><span class="status-pill ${statusClass}">${statusText}</span></td>
+              <td class="actions" style="white-space:nowrap">
+                <button onclick="viewCallback('${cb._id}')">View</button>
+                ${cb.contacted ? '' : `<button onclick="markCallbackContacted('${cb._id}')">Mark Contacted</button>`}
+                <button onclick="deleteCallback('${cb._id}')">Delete</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        content.innerHTML = `
+          <div class="row">
+            <div class="card" style="flex:1;">
+              <h3>Requested Callbacks</h3>
+              <div style="overflow:auto;">
+                <table>
+                  <tr>
+                    <th>Name</th><th>Phone</th><th>Requested At</th><th>Status</th><th>Actions</th>
+                  </tr>
+                  ${rows}
+                </table>
+              </div>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        console.error(err);
+        content.innerHTML = `<div class="row"><div class="card"><h3>Requested Callbacks</h3><p class="small">Error loading callbacks</p></div></div>`;
+      }
+    }
+
+    // helper: safe text
+    function escapeHtml(str){
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // actions used by table buttons (view opens modal)
+    async function viewCallback(id){
+      showModal(`<h3>Callback</h3><p>Loading...</p>`);
+      try {
+        // fetch single list and pick the callback (no single-get endpoint assumed)
+        const r = await fetchJson(`${API_BASE}/api/admin/callbacks`);
+        if (!r.ok || !r.data?.success) { modalContent.innerHTML = `<p>Failed to load</p>`; return; }
+        const cb = (r.data.callbacks || []).find(x => String(x._id) === String(id));
+        if (!cb) { modalContent.innerHTML = `<p>Callback not found</p>`; return; }
+        modalContent.innerHTML = `
+          <h3>Callback Request</h3>
+          <p><strong>Name:</strong> ${escapeHtml(cb.name || '-')}</p>
+          <p><strong>Phone:</strong> ${escapeHtml(cb.phone || '-')}</p>
+          <p><strong>Requested At:</strong> ${cb.createdAt ? new Date(cb.createdAt).toLocaleString() : '-'}</p>
+          <p><strong>Status:</strong> ${cb.contacted ? 'Contacted' : 'Pending'}</p>
+          <div style="margin-top:12px;display:flex;gap:8px">
+            ${!cb.contacted ? `<button class="btn" onclick="markCallbackContacted('${cb._id}')">Mark Contacted</button>` : ''}
+            <button onclick="deleteCallback('${cb._id}')">Delete</button>
+            <button onclick="closeModal()">Close</button>
+          </div>
+        `;
+      } catch (err) {
+        console.error(err);
+        modalContent.innerHTML = `<p>Error loading callback</p>`;
+      }
+    }
+
+    async function markCallbackContacted(id){
+      if (!confirm('Mark this callback as contacted?')) return;
+      const r = await fetchJson(`${API_BASE}/api/admin/callbacks/${id}/contacted`, { method: 'PATCH' });
+      if (!r.ok || !r.data?.success) {
+        alert(r.data?.message || 'Failed to mark contacted');
+        return;
+      }
+      // refresh current page (callbacks)
+      await renderCallbacks();
+      closeModal();
+    }
+
+    async function deleteCallback(id){
+      if (!confirm('Delete this callback?')) return;
+      const r = await fetchJson(`${API_BASE}/api/admin/callbacks/${id}`, { method: 'DELETE' });
+      if (!r.ok || !r.data?.success) {
+        alert(r.data?.message || 'Failed to delete callback');
+        return;
+      }
+      await renderCallbacks();
+      closeModal();
+    }
+
+    // ---------- Doctors / Patients / Appointments (kept similar to your previous file) ----------
+    async function saveDoctor(idv){
+      const name = document.getElementById('df_name').value.trim();
+      const email = document.getElementById('df_email').value.trim();
+      const phone = document.getElementById('df_phone').value.trim();
+      const speciality = document.getElementById('df_spec').value.trim();
+      const password = document.getElementById('df_pass').value;
+      if(!name || !email || !phone || (!idv && !password)){ alert('All fields are required (password required for new doctor)'); return; }
+
+      const url = idv ? `${API_BASE}/api/admin/edit-doctor/${idv}` : `${API_BASE}/api/admin/add-doctor`;
+      const method = idv ? 'PUT' : 'POST';
+      const bodyData = idv ? { name, email, phone, speciality } : { name, email, phone, speciality, password };
+
+      const r = await fetchJson(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyData) });
+      if (!r.ok || !r.data?.success) { alert(r.data?.message || 'Failed to save doctor'); return; }
+      alert(idv ? 'Doctor updated' : 'Doctor added');
+      closeModal();
+      await fetchDoctors(); renderManageUsers();
+    }
+
+    function openDoctorForm(doc){
+      const d = doc || { name:'', email:'', phone:'', speciality:'', password:'' };
+      showModal(`
+        <h3>${doc ? 'Edit' : 'Add'} Doctor</h3>
+        <label>Name</label><input id="df_name" value="${escapeHtml(d.name)}" />
+        <label>Email</label><input id="df_email" value="${escapeHtml(d.email)}" />
+        <label>Phone</label><input id="df_phone" value="${escapeHtml(d.phone)}" />
+        <label>Speciality</label><input id="df_spec" value="${escapeHtml(d.speciality||'')}" />
+        <label>Password</label><input id="df_pass" type="password" placeholder="${doc ? 'Leave blank to keep current' : ''}" />
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn" onclick="saveDoctor('${d._id||''}')">Save</button>
+          <button onclick="closeModal()">Cancel</button>
+        </div>
+      `);
+    }
+
+    function editDoctor(idv){
+      const doc = (window.doctors||[]).find(d=>d._id===idv);
+      if (doc) openDoctorForm(doc);
+    }
+
+    async function deleteDoctor(idv){
+      if(!confirm('Delete doctor?')) return;
+      const r = await fetchJson(`${API_BASE}/api/admin/delete-doctor/${idv}`, { method: 'DELETE' });
+      if (!r.ok || !r.data?.success) { alert(r.data?.message || 'Failed to delete doctor'); return; }
+      await fetchDoctors(); renderManageUsers();
+    }
+
+    async function adminViewPatient(id){
+      showModal(`<h3>Patient</h3><p>Loading...</p>`);
+      const r = await fetchJson(`${API_BASE}/api/admin/patients`);
+      if (!r.ok || !r.data?.success) { modalContent.innerHTML = `<p>Failed to load</p>`; return; }
+      const p = (r.data.patients||[]).find(x=> String(x._id) === String(id));
+      if(!p){ modalContent.innerHTML = `<p>Patient not found</p>`; return; }
+      modalContent.innerHTML = `
+        <h3>${escapeHtml(p.name)}</h3>
+        <p><strong>Email:</strong> ${escapeHtml(p.email||'-')}</p>
+        <p><strong>Phone:</strong> ${escapeHtml(p.phone||'-')}</p>
+        <p><strong>Created:</strong> ${p.createdAt ? new Date(p.createdAt).toLocaleString() : '-'}</p>
+        <div style="margin-top:12px"><button class="btn" onclick="closeModal()">Close</button></div>
+      `;
+    }
+
+    async function adminEditPatient(id){
+      showModal(`<h3>Edit patient</h3><p>Loading...</p>`);
+      const r = await fetchJson(`${API_BASE}/api/admin/patients`);
+      if (!r.ok || !r.data?.success) { modalContent.innerHTML = `<p>Failed to load</p>`; return; }
+      const p = (r.data.patients||[]).find(x=> String(x._id) === String(id));
+      if(!p){ modalContent.innerHTML = `<p>Patient not found</p>`; return; }
+      modalContent.innerHTML = `
+        <h3>Edit patient</h3>
+        <label>Name</label><input id="ap_name" value="${escapeHtml(p.name||'')}" />
+        <label>Email</label><input id="ap_email" value="${escapeHtml(p.email||'')}" />
+        <label>Phone</label><input id="ap_phone" value="${escapeHtml(p.phone||'')}" />
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn" onclick="adminSavePatient('${id}')">Save</button>
+          <button onclick="closeModal()">Cancel</button>
+        </div>
+      `;
+    }
+
+    async function adminSavePatient(id){
+      const name = document.getElementById('ap_name').value.trim();
+      const email = document.getElementById('ap_email').value.trim();
+      const phone = document.getElementById('ap_phone').value.trim();
+      if(!name){ alert('Name required'); return; }
+      const r = await fetchJson(`${API_BASE}/api/admin/patients/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, phone }) });
+      if(!r.ok || !r.data?.success){ alert(r.data?.message || 'Failed to update patient'); return; }
+      alert('Patient updated'); closeModal(); renderManageUsers();
+    }
+
+    async function adminDeletePatient(id){
+      if(!confirm('Delete patient?')) return;
+      const r = await fetchJson(`${API_BASE}/api/admin/patients/${id}`, { method:'DELETE' });
+      if(!r.ok || !r.data?.success){ alert(r.data?.message || 'Failed to delete patient'); return; }
+      alert('Patient deleted'); renderManageUsers();
+    }
+
+    // Render Manage Users
+    async function renderManageUsers(){
+      content.innerHTML = `
+        <div class="row">
+          <div class="card" style="flex:1">
+            <h3>Doctors <button class="btn" style="margin-left:12px" onclick="openDoctorForm()">Add Doctor</button></h3>
+            <table id="doctorsTable"><tr><th>Name</th><th>Email</th><th>Phone</th><th>Speciality</th><th>Actions</th></tr>
+              <tr><td colspan="5" class="small">Loading doctors...</td></tr>
+            </table>
+          </div>
+        </div>
+        <div class="row">
+          <div class="card" style="flex:1">
+            <h3>Patients</h3>
+            <table id="patientsTable"><tr><th>Name</th><th>Email</th><th>Phone</th><th>Actions</th></tr>
+              <tr><td colspan="4" class="small">Loading patients...</td></tr>
+            </table>
+          </div>
+        </div>
+      `;
+      await fetchDoctors();
+      const doctors = window.doctors || [];
+      const dt = document.getElementById('doctorsTable');
+      if(!doctors.length) dt.innerHTML = `<tr><th>Name</th><th>Email</th><th>Phone</th><th>Speciality</th><th>Actions</th></tr><tr><td colspan="5">No doctors found</td></tr>`;
+      else dt.innerHTML = `<tr><th>Name</th><th>Email</th><th>Phone</th><th>Speciality</th><th>Actions</th></tr>` + doctors.map(d=>`<tr data-id="${d._id}"><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.email)}</td><td>${escapeHtml(d.phone)}</td><td>${escapeHtml(d.speciality||'-')}</td><td class="actions"><button onclick="editDoctor('${d._id}')">Edit</button><button onclick="deleteDoctor('${d._id}')">Delete</button></td></tr>`).join('');
+
+      const patients = await fetchPatientsFromApi();
+      const pt = document.getElementById('patientsTable');
+      if(!patients.length) pt.innerHTML = `<tr><th>Name</th><th>Email</th><th>Phone</th><th>Actions</th></tr><tr><td colspan="4">No patients found</td></tr>`;
+      else pt.innerHTML = `<tr><th>Name</th><th>Email</th><th>Phone</th><th>Actions</th></tr>` + patients.map(p=>`<tr data-id="${p._id}"><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.email||'-')}</td><td>${escapeHtml(p.phone||'-')}</td><td class="actions"><button onclick="adminViewPatient('${p._id}')">View</button><button onclick="adminEditPatient('${p._id}')">Edit</button><button onclick="adminDeletePatient('${p._id}')">Delete</button></td></tr>`).join('');
+    }
+
+    // Render Appointments (same approach)
+    async function renderAppointments(){
+      content.innerHTML = `<div class="row"><div class="card" style="flex:1"><h3>Appointments</h3><p class="small">Loading appointments from server...</p></div></div>`;
+      try {
+        const r = await fetchJson(`${API_BASE}/api/admin/appointments`);
+        if (!r.ok || !r.data?.success) { content.innerHTML = `<div class="row"><div class="card"><h3>Appointments</h3><p class="small">${r.data?.message || 'Failed to load appointments'}</p></div></div>`; return; }
+        const rows = (r.data.appointments || []).map(a => `
+          <tr data-id="${a._id}">
+            <td>${escapeHtml(a.doctorName || '-')}</td>
+            <td>${escapeHtml(a.patientName || '-')}</td>
+            <td>${a.date ? new Date(a.date).toLocaleDateString() : '-'}</td>
+            <td>${escapeHtml(a.timeSlot || '-')}</td>
+            <td><span class="status-pill status-${escapeHtml(a.status || 'Pending')}">${escapeHtml(a.status || '')}</span></td>
+            <td class="actions" style="white-space: nowrap;">
+              <button style="background:#0A7BFF;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;" onclick="updateAppointmentStatus('${a._id}', 'Confirmed')">Confirm</button>
+              <button style="background:#28A745;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;" onclick="updateAppointmentStatus('${a._id}', 'Completed')">Complete</button>
+              <button style="background:#DC3545;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;" onclick="updateAppointmentStatus('${a._id}', 'Cancelled')">Cancel</button>
+            </td>
+          </tr>
+        `).join('');
+
+        content.innerHTML = `<div class="row"><div class="card" style="flex:1"><h3>Appointments</h3><table><tr><th>Doctor</th><th>Patient</th><th>Date</th><th>Time</th><th>Status</th><th>Actions</th></tr>${rows || `<tr><td colspan="6">No appointments found</td></tr>`}</table></div></div>`;
+      } catch (err) {
+        console.error(err);
+        content.innerHTML = `<div class="row"><div class="card"><h3>Appointments</h3><p class="small">Error while loading appointments</p></div></div>`;
+      }
+    }
+
+    async function updateAppointmentStatus(id, status){
+      if (!confirm(`Change status to "${status}"?`)) return;
+      const r = await fetchJson(`${API_BASE}/api/admin/appointments/${id}/status`, { method: 'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
+      if (!r.ok || !r.data?.success) { alert(r.data?.message || 'Failed to update'); return; }
+      renderAppointments();
+    }
+
+    function logout(){ if(confirm('Logout?')){ localStorage.clear(); window.location.href = "login.html"; } }
+
+    // Init
+    (async function init(){
+      await fetchDoctors();
+      renderManageUsers(); // default landing
+    })();
+  </script>
+
+</body>
+</html>

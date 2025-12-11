@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dental Clinic Login</title>
+
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    .card {
+      width: 420px;
+      padding: 30px;
+      background: #ffffff;
+      border-radius: 18px;
+      border: 2px solid #0A224C;
+      box-shadow: 0px 10px 25px rgba(0,0,0,0.1);
+    }
+
+    .card h2 {
+      text-align: center;
+      color: #0A224C;
+      margin-bottom: 22px;
+      font-weight: 700;
+    }
+
+    .role-boxes {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .role {
+      width: 32%;
+      padding: 12px;
+      text-align: center;
+      border-radius: 12px;
+      border: 2px solid #0A224C;
+      cursor: pointer;
+      font-weight: 600;
+      color: #0A224C;
+      background: #f3f6ff;
+      transition: 0.3s;
+    }
+
+    .role.selected {
+      background: #0A224C;
+      color: white;
+    }
+
+    .input-group {
+      margin-bottom: 15px;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #0A224C;
+      margin-bottom: 6px;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1.6px solid #cfd8e6;
+      outline: none;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    .input-group input:focus {
+      border-color: #0A224C;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      background: #0A224C;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .btn:hover {
+      background: #071a3a;
+    }
+
+    .link {
+      text-align: center;
+      margin-top: 15px;
+      font-size: 14px;
+      color: #0A224C;
+      font-weight: 600;
+    }
+
+    .link a {
+      color: #0A224C;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+  </style>
+</head>
+
+<body>
+
+  <div class="card">
+    <h2>Login</h2>
+
+    <form id="loginForm">
+
+      <input type="hidden" name="role" id="roleInput" value="patient">
+
+      <div class="role-boxes">
+        <div class="role selected" onclick="selectRole('patient', this)">Patient</div>
+        <div class="role" onclick="selectRole('doctor', this)">Doctor</div>
+        <div class="role" onclick="selectRole('admin', this)">Admin</div>
+      </div>
+
+      <div class="input-group">
+        <label>Email</label>
+        <input type="email" name="email" required>
+      </div>
+
+      <div class="input-group">
+        <label>Password</label>
+        <input type="password" name="password" required>
+      </div>
+
+      <button type="submit" class="btn">Login</button>
+    </form>
+
+    <!-- Dynamic message here -->
+    <div class="link" id="dynamicMessage">
+      Don't have an account? <a href="register.html">Register</a>
+    </div>
+
+  </div>
+
+<script>
+/* ================= ROLE SELECTION + DYNAMIC MESSAGE ================= */
+function selectRole(role, element) {
+  document.getElementById("roleInput").value = role;
+
+  document.querySelectorAll('.role').forEach(box =>
+    box.classList.remove('selected')
+  );
+
+  element.classList.add('selected');
+
+  // Update bottom message dynamically
+  const msg = document.getElementById("dynamicMessage");
+
+  if (role === "patient") {
+    msg.innerHTML = `Don't have an account? <a href="register.html">Register</a>`;
+  } else {
+    msg.innerHTML = "Doctors and Admins are registered by clinic administration.";
+  }
+}
+
+/* ================= LOGIN FORM SUBMIT ================= */
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const email = e.target.email.value;
+  const password = e.target.password.value;
+  const role = document.getElementById("roleInput").value;
+
+  try {
+    const res = await fetch("http://localhost:5000/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, role })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.message || "Login failed");
+      return;
+    }
+
+    localStorage.setItem("dentcare_user", JSON.stringify({
+      name: data.name,
+      role: data.role,
+      token: data.token
+    }));
+
+    if (data.role === "admin") window.location.href = "admin-dashboard.html";
+    if (data.role === "doctor") window.location.href = "doctor_dashboard.html";
+    if (data.role === "patient") window.location.href = "patient_dashboard.html";
+
+  } catch (err) {
+    alert("Server error");
+    console.error(err);
+  }
+});
+</script>
+</body>
+</html>
